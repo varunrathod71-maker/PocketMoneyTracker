@@ -1,27 +1,77 @@
 
-name: Detect APK Build Workflow
+name: Build Pocket Money Tracker APK
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
-  workflow_dispatch:
+    paths:
+      - ".github/workflows/detect-apk.yml"
+      - "PocketMoneyTracker-Android-Project-Final.zip"
 
 permissions:
   contents: read
 
 jobs:
-  detection-test:
-    name: Test GitHub Actions
+  build:
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Confirm workflow is running
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Check project ZIP
         run: |
-          echo "GitHub Actions detected the workflow."
-          echo "Repository: $GITHUB_REPOSITORY"
-          echo "Branch: $GITHUB_REF_NAME"
+          test -s PocketMoneyTracker-Android-Project-Final.zip || {
+            echo "::error::Project ZIP missing from repository root."
+            exit 1
+          }
+          unzip -t PocketMoneyTracker-Android-Project-Final.zip
+
+      - name: Extract project
+        run: |
+          mkdir project-src
+          unzip -q PocketMoneyTracker-Android-Project-Final.zip -d project-src
+
+      - name: Verify Android files
+        run: |
+          test -s project-src/settings.gradle
+          test -s project-src/build.gradle
+          test -s project-src/app/build.gradle
+          test -s project-src/app/src/main/AndroidManifest.xml
+          test -s project-src/app/src/main/java/com/stickflicks/pocketmoney/MainActivity.java
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build debug APK
+        run: gradle --no-daemon -p project-src :app:assembleDebug
+
+      - name: Verify APK
+        run: |
+          test -s project-src/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PocketMoneyTracker-debug-apk
+          path: project-src/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
           
