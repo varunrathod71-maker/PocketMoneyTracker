@@ -1,0 +1,61 @@
+
+name: Build Pocket Money Tracker APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up compatible Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.9'
+
+      - name: Validate project ZIP
+        run: |
+          test -s PocketMoneyTracker-Android-Project-Final.zip || { echo "::error::Upload PocketMoneyTracker-Android-Project-Final.zip to the repository root first."; exit 1; }
+          unzip -t PocketMoneyTracker-Android-Project-Final.zip
+
+      - name: Extract Android source
+        run: unzip -q PocketMoneyTracker-Android-Project-Final.zip -d project-src
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Verify project structure
+        run: |
+          test -s project-src/settings.gradle || { echo "::error::settings.gradle is missing at the project ZIP root."; exit 1; }
+          test -s project-src/app/build.gradle || { echo "::error::app/build.gradle is missing."; exit 1; }
+          test -s project-src/app/src/main/AndroidManifest.xml || { echo "::error::AndroidManifest.xml is missing."; exit 1; }
+          test -s project-src/app/src/main/java/com/stickflicks/pocketmoney/MainActivity.java || { echo "::error::MainActivity.java is missing."; exit 1; }
+
+      - name: Build debug APK
+        run: gradle --no-daemon -p project-src :app:assembleDebug
+
+      - name: Verify APK output
+        run: test -s project-src/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PocketMoneyTracker-debug-apk
+          path: project-src/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          
