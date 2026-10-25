@@ -1,4 +1,3 @@
-
 name: Build Pocket Money Tracker APK
 
 on:
@@ -49,13 +48,30 @@ jobs:
           mkdir project-src
           unzip -q PocketMoneyTracker-Android-Project-Final.zip -d project-src
 
-      - name: Verify Android files
+      - name: Locate Android project
         run: |
-          test -s project-src/settings.gradle
-          test -s project-src/build.gradle
-          test -s project-src/app/build.gradle
-          test -s project-src/app/src/main/AndroidManifest.xml
-          test -s project-src/app/src/main/java/com/stickflicks/pocketmoney/MainActivity.java
+          echo "Searching for Android project..."
+          find project-src -name settings.gradle -o -name settings.gradle.kts
+          find project-src -name MainActivity.java
+
+      - name: Verify project files
+        run: |
+          test -s project-src/settings.gradle || {
+            echo "::error::settings.gradle missing at expected path."
+            exit 1
+          }
+          test -s project-src/build.gradle || {
+            echo "::error::build.gradle missing at expected path."
+            exit 1
+          }
+          test -s project-src/app/build.gradle || {
+            echo "::error::app/build.gradle missing at expected path."
+            exit 1
+          }
+          test -s project-src/app/src/main/AndroidManifest.xml || {
+            echo "::error::AndroidManifest.xml missing."
+            exit 1
+          }
 
       - name: Install Android SDK packages
         run: |
@@ -66,7 +82,10 @@ jobs:
 
       - name: Verify APK
         run: |
-          test -s project-src/app/build/outputs/apk/debug/app-debug.apk
+          test -s project-src/app/build/outputs/apk/debug/app-debug.apk || {
+            echo "::error::APK was not generated."
+            exit 1
+          }
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -74,4 +93,3 @@ jobs:
           name: PocketMoneyTracker-debug-apk
           path: project-src/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          
